@@ -13,3 +13,24 @@ Every technology introduced into the platform must answer one simple question:
 **Why are we deploying this?**
 
 Understanding the architecture is considered more important than simply making it work.
+
+---
+
+## Roadmap
+
+- [x] Prepare Raspberry Pi host
+- [x] Configure static networking
+- [x] Configure remote SSH access
+- [x] Configure Git and GitHub authentication
+- [x] Install Docker Engine
+- [x] Install Docker Compose
+- [x] Deploy Pi-hole
+- [x] Validate Pi-hole web interface
+- [ ] Validate DNS filtering from a test client
+- [ ] Configure network-wide DNS
+- [ ] Deploy encrypted upstream DNS
+- [ ] Add container management
+- [ ] Add monitoring
+- [ ] Implement backup and recovery procedures
+- [ ] Apply security hardening
+- [ ] Complete architecture documentation
