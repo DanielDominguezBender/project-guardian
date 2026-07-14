@@ -16,6 +16,25 @@ Understanding the architecture is considered more important than simply making i
 
 ---
 
+## Blocklist Expansion
+
+Project Guardian initially used the default StevenBlack blocklist.
+
+A second curated blocklist (HaGeZi Multi PRO) was later added.
+
+| Stage | Lists | Gravity Domains |
+|--------|------:|----------------:|
+| Initial deployment | 1 | 78,451 |
+| After HaGeZi | 2 | 312,177 |
+
+Gravity was rebuilt using:
+
+```bash
+docker exec guardian-pihole pihole -g
+```
+
+---
+
 ## Roadmap
 
 - [x] Prepare Raspberry Pi host
