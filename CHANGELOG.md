@@ -39,3 +39,16 @@ All notable changes to Project Guardian will be documented in this file.
 - Resolved temporary DNS resolution failure.
 - Resolved Docker socket permission issue.
 - Documented the correct approach for inspecting SQLite databases from the host instead of modifying the running container.
+
+### Added
+
+- Added Disaster Recovery Test DR-001.
+- Added backup strategy documentation.
+- Added Architecture Decision Record ADR-001.
+- Added disaster recovery evidence screenshots.
+
+### Tested
+
+- Successfully validated complete Docker container recovery.
+- Verified bind mount persistence after container deletion.
+- Verified automatic Pi-hole restoration using Docker Compose.
