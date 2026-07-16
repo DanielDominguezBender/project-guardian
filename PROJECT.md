@@ -71,14 +71,17 @@ The project is designed as a long-term learning platform rather than a one-time 
 - Raspberry Pi Infrastructure
 - Docker Engine
 - Docker Compose
-- Pi-hole
+- Persistent storage using bind mounts
+- Backup and restore procedures
+- Disaster Recovery testing
+- Operations runbooks
+- Architecture Decision Records
 - Cloudflared
 - Portainer
 - Uptime Kuma
 - Watchtower
 - Documentation
-- Architecture Diagrams
-- Backup Strategy
+- Architecture diagrams
 
 ### Not Included
 
@@ -95,16 +98,21 @@ These technologies may be considered in future versions.
 ## 6. Technical Stack
 
 | Layer | Technology |
-|--------|------------|
+|---|---|
 | Hardware | Raspberry Pi 5 |
 | Operating System | Raspberry Pi OS Bookworm |
-| Container Platform | Docker |
-| Container Orchestration | Docker Compose |
+| Remote Administration | OpenSSH |
+| Container Platform | Docker Engine |
+| Service Definition | Docker Compose |
 | DNS Filtering | Pi-hole |
-| Secure DNS | Cloudflared |
-| Container Management | Portainer |
-| Monitoring | Uptime Kuma |
-| Version Control | Git & GitHub |
+| Secure DNS | Cloudflared — planned |
+| Persistent Storage | Docker bind mounts |
+| Data Storage | SQLite |
+| Automation | Bash |
+| Container Management | Portainer — planned |
+| Monitoring | Uptime Kuma — planned |
+| Version Control | Git and GitHub |
+| Documentation | Markdown and Architecture Decision Records |
 
 ---
 
@@ -136,21 +144,73 @@ Each layer has a single responsibility and can evolve independently.
 
 ## 8. Roadmap
 
-Phase 0 — Project Design
+### Phase 0 — Project Design ✅
 
-Phase 1 — Infrastructure Foundation
+- Define project vision, scope and engineering principles.
+- Create the initial repository structure.
+- Establish documentation and commit conventions.
 
-Phase 2 — Container Platform
+### Phase 1 — Infrastructure Foundation ✅
 
-Phase 3 — DNS Platform
+- Prepare the Raspberry Pi host.
+- Configure static networking.
+- Configure SSH administration.
+- Configure Git and GitHub authentication.
 
-Phase 4 — Observability
+### Phase 2 — Container Platform ✅
 
-Phase 5 — Operations
+- Install Docker Engine.
+- Install Docker Compose.
+- Define persistent storage.
+- Validate the container lifecycle.
 
-Phase 6 — Security Enhancements
+### Phase 3 — DNS Filtering Platform ✅
 
-Phase 7 — Portfolio & Documentation
+- Deploy Pi-hole.
+- Configure DNS filtering.
+- Inspect Gravity and SQLite databases.
+- Add and validate subscribed blocklists.
+- Document DNS-level filtering limitations.
+
+### Phase 4 — Operations and Recoverability 🔄
+
+- Define the backup strategy.
+- Implement the Pi-hole backup script.
+- Document backup and restore procedures.
+- Validate container-loss recovery.
+- Validate backup restoration.
+- Automate scheduled backups.
+- Define backup retention.
+
+### Phase 5 — Secure DNS and Security Hardening ⏳
+
+- Evaluate Cloudflared and Unbound.
+- Select and document the upstream DNS architecture.
+- Apply container and host hardening.
+- Review secrets management.
+- Review least-privilege configuration.
+
+### Phase 6 — Observability ⏳
+
+- Deploy Uptime Kuma.
+- Add service health monitoring.
+- Define alerting.
+- Monitor resource and container availability.
+
+### Phase 7 — Platform Management and Maintenance ⏳
+
+- Evaluate Portainer.
+- Define container update procedures.
+- Evaluate automatic image updates.
+- Document rollback procedures.
+
+### Phase 8 — Portfolio and Final Documentation ⏳
+
+- Complete architecture diagrams.
+- Finalize runbooks and ADRs.
+- Complete Disaster Recovery reports.
+- Improve the repository README.
+- Publish the project case study.
 
 ---
 
@@ -158,12 +218,17 @@ Phase 7 — Portfolio & Documentation
 
 Project Guardian will be considered successful when:
 
-- Every service runs inside Docker.
-- DNS traffic is securely filtered.
-- Documentation covers every architectural decision.
-- The entire platform can be restored from backups.
+- All suitable infrastructure applications are reproducibly deployed using Docker Compose.
+- DNS traffic is filtered and forwarded through a documented DNS architecture.
+- Persistent application data is separated from the container lifecycle.
+- Critical configuration and operational data are backed up.
+- Backup restoration has been successfully validated.
+- Disaster Recovery scenarios have been executed and documented.
 - Monitoring is available for all critical services.
-- The repository can be used by others to reproduce the deployment.
+- Architectural decisions are documented using ADRs.
+- Operational procedures are documented through runbooks.
+- Secrets and runtime data are excluded from version control.
+- The repository allows another engineer to understand and reproduce the platform.
 
 ---
 

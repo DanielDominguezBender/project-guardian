@@ -1,6 +1,8 @@
 # Local environment files and secrets
 .env
 **/.env
+backups/*
+!backups/.gitkeep
 
 # Pi-hole persistent runtime data
 compose/pihole/etc-pihole/
