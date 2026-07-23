@@ -1,6 +1,6 @@
-# Project Guardian Architecture
+# Project Guardian 
 
-## Overview
+## Architecture Overview
 
 Project Guardian currently uses a Raspberry Pi 5 as a dedicated infrastructure host named `infra01`.
 
@@ -27,6 +27,47 @@ guardian-pihole container
      |
      +-- Allowed domain --> Upstream DNS resolver
 
+## Software Architecture
+
+Project Guardian
+|
++-- scripts/
+|     |
+|     +-- backup.sh
+|     +-- restore.sh
+|     +-- healthcheck.sh
+|
++-- lib/
+|     |
+|     +-- logger.sh
+|
++-- docs/
+|
++-- compose/
+
+## Startup Flow
+
+backup.sh
+
+↓
+
+Locate PROJECT_ROOT
+
+↓
+
+Locate logger.sh
+
+↓
+
+Validate dependency
+
+↓
+
+Load logger.sh
+
+↓
+
+Execute backup logic
 
 ## Container Architecture
 
@@ -65,3 +106,27 @@ blocklist definitions
 allowlist and denylist rules
 
 The container can be recreated independently from its persistent data.
+
+## Design principles
+
+### Modularity
+
+Shared functionality must live inside reusable modules.
+
+### Single Responsibility
+
+Each component has a single responsibility.
+
+Example:
+
+backup.sh
+
+Responsible for backups.
+
+logger.sh
+
+Responsible for logging.
+
+### Dependency validation
+
+Critical dependencies are validated before use.
