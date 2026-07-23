@@ -33,7 +33,7 @@ log_info() {
 }
 
 log_error() {
-    :
+    echo "[ERROR] | $(date '+%Y-%m-%d %H:%M:%S') | $(basename "$0") | $1" >&2
 }
 
 validate_environment() {
