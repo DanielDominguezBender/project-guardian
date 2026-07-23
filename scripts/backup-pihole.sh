@@ -28,12 +28,21 @@ BACKUP_FILE=""
 
 # 3. Functions
 
-log_info() {
-    echo "[INFO] | $(date '+%Y-%m-%d %H:%M:%S') | $(basename "$0") | $1"
-}
+#log_info() {
+#    echo "[INFO] | $(date '+%Y-%m-%d %H:%M:%S') | $(basename "$0") | $1"
+#}
 
-log_error() {
-    echo "[ERROR] | $(date '+%Y-%m-%d %H:%M:%S') | $(basename "$0") | $1" >&2
+#log_error() {
+#    echo "[ERROR] | $(date '+%Y-%m-%d %H:%M:%S') | $(basename "$0") | $1" >&2
+#}
+
+log_message() {
+
+	local level="$1"
+	local message="$2"
+	local log_line="..."
+
+	echo "$log_line"
 }
 
 validate_environment() {

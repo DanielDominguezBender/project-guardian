@@ -35,6 +35,11 @@ docker exec guardian-pihole pihole -g
 
 ---
 
+## Current milestone:
+
+✔ Logging Engine architecture designed.
+
+---
 ## Roadmap
 
 - [x] Prepare Raspberry Pi host
