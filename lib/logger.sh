@@ -1,6 +1,23 @@
-log_message() {
+#!/usr/bin/env bash
 
-# What is the problem?
+# =============================================================================
+# Project Guardian - Logging Library
+# =============================================================================
+#
+# Public interface:
+#   log_message LEVEL MESSAGE
+#
+# Supported levels:
+#   INFO, WARNING, ERROR
+#
+# Return codes:
+#   0 - Success
+#   2 - Invalid interface usage
+#   3 - Timestamp generation failure
+# =============================================================================
+
+#==============================================================================
+# What is the problem we want to solve with this module?
 ## We need a consistent ways to register events
 
 # What is the responsability?
@@ -16,14 +33,18 @@ log_message() {
 
 # What can go wrong?
 ## Level or Message variable can be empty, date can fail, ...
+#===============================================================================#
 
-    local level="$1"
-    local message="$2"
+log_message() {
 
     if [[ $# -ne 2 ]]; then
         printf 'LOGGER_ERROR: log_message requires exactly 2 arguments.\n' >&2
         return 2
     fi
+
+    local level="$1"
+    local message="$2"
+
 
     if [[ -z "$level" || -z "$message" ]]; then
         printf 'LOGGER_ERROR: level and message must not be empty.\n' >&2
@@ -40,7 +61,6 @@ log_message() {
     esac
 
     local timestamp
-    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
 
     if ! timestamp="$(date '+%Y-%m-%d %H:%M:%S')"; then
         printf "LOGGER_ERROR: unable to generate timestamp.\n" >&2
