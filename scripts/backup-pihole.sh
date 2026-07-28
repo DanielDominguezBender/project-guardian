@@ -49,6 +49,8 @@ TIMESTAMP=""
 BACKUP_DIR=""
 BACKUP_FILE=""
 
+STAGING_DIR=""
+
 # 3. Functions
 
 validate_environment() {
@@ -121,11 +123,113 @@ validate_environment() {
 
     log_message INFO "Pi-hole container is available and running"
 
+    if ! docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+    log_message ERROR \
+        "Pi-hole container does not exist: $CONTAINER_NAME" >&2
+    return 1
+    fi
+
+    local container_running
+
     return 0
 }
 
 create_backup_directory() {
-    :
+    log_message INFO "Preparing backup destination"
+
+    if ! TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"; then
+        log_message ERROR "Unable to generate backup timestamp" >&2
+        return 1
+    fi
+
+    BACKUP_DATE="${TIMESTAMP:0:4}-${TIMESTAMP:4:2}-${TIMESTAMP:6:2}"
+    BACKUP_DIR="$BACKUP_ROOT/$BACKUP_DATE"
+    BACKUP_FILE="$BACKUP_DIR/pihole-backup-$TIMESTAMP.tar.gz"
+
+    if ! mkdir -p "$BACKUP_DIR"; then
+        log_message ERROR \
+            "Unable to create backup directory: $BACKUP_DIR" >&2
+        return 1
+    fi
+
+    if [[ ! -d "$BACKUP_DIR" ]]; then
+        log_message ERROR \
+            "Backup destination is not a directory: $BACKUP_DIR" >&2
+        return 1
+    fi
+
+    if [[ ! -w "$BACKUP_DIR" ]]; then
+        log_message ERROR \
+            "Backup directory is not writable: $BACKUP_DIR" >&2
+        return 1
+    fi
+
+    if [[ -e "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup file already exists: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    log_message INFO "Backup directory ready: $BACKUP_DIR"
+    log_message INFO "Backup file reserved: $BACKUP_FILE"
+
+    return 0
+}
+
+prepare_backup_contents() {
+    log_message INFO "Preparing backup contents"
+
+    if ! STAGING_DIR="$(
+        mktemp -d \
+            "${TMPDIR:-/tmp}/project-guardian-${TIMESTAMP}-XXXXXX"
+    )"; then
+        log_message ERROR \
+            "Unable to create temporary staging directory" >&2
+        return 1
+    fi
+
+    if ! chmod 700 "$STAGING_DIR"; then
+        log_message ERROR \
+            "Unable to secure staging directory: $STAGING_DIR" >&2
+        return 1
+    fi
+
+    if ! mkdir -p \
+        "$STAGING_DIR/data" \
+        "$STAGING_DIR/configuration" \
+        "$STAGING_DIR/metadata"; then
+        log_message ERROR \
+            "Unable to create staging directory structure" >&2
+        return 1
+    fi
+
+    if ! cp -a \
+        "$PIHOLE_DATA_DIR" \
+        "$STAGING_DIR/data/"; then
+        log_message ERROR \
+            "Unable to copy Pi-hole application data" >&2
+        return 1
+    fi
+
+    if ! cp \
+        "$COMPOSE_FILE" \
+        "$STAGING_DIR/configuration/docker-compose.yml"; then
+        log_message ERROR \
+            "Unable to copy Docker Compose configuration" >&2
+        return 1
+    fi
+
+    if ! cp \
+        "$ENV_FILE" \
+        "$STAGING_DIR/configuration/.env"; then
+        log_message ERROR \
+            "Unable to copy environment configuration" >&2
+        return 1
+    fi
+
+    log_message INFO "Backup contents prepared: $STAGING_DIR"
+
+    return 0
 }
 
 stop_pihole() {
@@ -165,3 +269,19 @@ main() {
 trap cleanup EXIT
 
 main "$@"
+
+if ! create_backup_directory; then
+    log_message ERROR \
+        "Backup aborted while preparing destination" >&2
+    return 1
+fi
+
+log_message INFO "Backup destination preparation completed"
+
+if ! prepare_backup_contents; then
+    log_message ERROR \
+        "Backup aborted while preparing backup contents" >&2
+    return 1
+fi
+
+log_message INFO "Backup content preparation completed"
