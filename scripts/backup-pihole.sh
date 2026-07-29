@@ -48,8 +48,8 @@ BACKUP_DATE=""
 TIMESTAMP=""
 BACKUP_DIR=""
 BACKUP_FILE=""
-
 STAGING_DIR=""
+MANIFEST_FILE=""
 
 # 3. Functions
 
@@ -232,6 +232,237 @@ prepare_backup_contents() {
     return 0
 }
 
+create_backup_manifest() {
+    log_message INFO "Creating backup manifest"
+
+    if [[ -z "$STAGING_DIR" ]]; then
+        log_message ERROR \
+            "Staging directory has not been initialized" >&2
+        return 1
+    fi
+
+    if [[ ! -d "$STAGING_DIR/metadata" ]]; then
+        log_message ERROR \
+            "Metadata directory does not exist: $STAGING_DIR/metadata" >&2
+        return 1
+    fi
+
+    MANIFEST_FILE="$STAGING_DIR/metadata/manifest.txt"
+
+    local created_at
+    local source_host
+    local container_image
+    local archive_name
+    local temporary_manifest
+
+    created_at="$(date --iso-8601=seconds)"
+    source_host="$(hostname)"
+    archive_name="$(basename "$BACKUP_FILE")"
+
+    if ! container_image="$(
+        docker inspect \
+            --format '{{.Config.Image}}' \
+            "$CONTAINER_NAME"
+    )"; then
+        log_message ERROR \
+            "Unable to determine container image: $CONTAINER_NAME" >&2
+        return 1
+    fi
+
+    if ! temporary_manifest="$(
+        mktemp "$STAGING_DIR/metadata/.manifest.XXXXXX"
+    )"; then
+        log_message ERROR \
+            "Unable to create temporary manifest file" >&2
+        return 1
+    fi
+
+    if ! chmod 600 "$temporary_manifest"; then
+        log_message ERROR \
+            "Unable to secure temporary manifest file" >&2
+        rm -f "$temporary_manifest"
+        return 1
+    fi
+
+    if ! cat > "$temporary_manifest" <<EOF
+Manifest-Version: 1
+Project: Project Guardian
+Backup-Type: Pi-hole
+
+Created-At: $created_at
+Backup-Timestamp: $TIMESTAMP
+Source-Host: $source_host
+
+Container-Name: $CONTAINER_NAME
+Container-Image: $container_image
+Consistency-Mode: live-copy
+
+Archive-Filename: $archive_name
+
+Data-Path: data/etc-pihole
+Compose-File: configuration/docker-compose.yml
+Environment-File: configuration/.env
+EOF
+    then
+        log_message ERROR \
+            "Unable to write backup manifest" >&2
+        rm -f "$temporary_manifest"
+        return 1
+    fi
+
+    if [[ ! -s "$temporary_manifest" ]]; then
+        log_message ERROR \
+            "Generated backup manifest is empty" >&2
+        rm -f "$temporary_manifest"
+        return 1
+    fi
+
+    if ! mv "$temporary_manifest" "$MANIFEST_FILE"; then
+        log_message ERROR \
+            "Unable to publish backup manifest" >&2
+        rm -f "$temporary_manifest"
+        return 1
+    fi
+
+    log_message INFO \
+        "Backup manifest created: $MANIFEST_FILE"
+
+    return 0
+}
+
+create_backup_archive() {
+    log_message INFO "Creating backup archive"
+
+    if [[ -z "$STAGING_DIR" ]]; then
+        log_message ERROR \
+            "Staging directory has not been initialized" >&2
+        return 1
+    fi
+
+    if [[ ! -d "$STAGING_DIR" ]]; then
+        log_message ERROR \
+            "Staging directory does not exist: $STAGING_DIR" >&2
+        return 1
+    fi
+
+    if [[ -z "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup file path has not been initialized" >&2
+        return 1
+    fi
+
+    if [[ -e "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup file already exists: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    local temporary_archive
+
+    if ! temporary_archive="$(
+        mktemp \
+            "$BACKUP_DIR/.pihole-backup-${TIMESTAMP}.XXXXXX.tar.gz"
+    )"; then
+        log_message ERROR \
+            "Unable to create temporary backup archive" >&2
+        return 1
+    fi
+
+    if ! tar \
+        -C "$STAGING_DIR" \
+        -czf "$temporary_archive" \
+        configuration \
+        data \
+        metadata; then
+        log_message ERROR \
+            "Unable to create compressed backup archive" >&2
+        rm -f "$temporary_archive"
+        return 1
+    fi
+
+    if [[ ! -s "$temporary_archive" ]]; then
+        log_message ERROR \
+            "Generated backup archive is empty" >&2
+        rm -f "$temporary_archive"
+        return 1
+    fi
+
+    if ! tar -tzf "$temporary_archive" >/dev/null 2>&1; then
+        log_message ERROR \
+            "Generated backup archive failed integrity validation" >&2
+        rm -f "$temporary_archive"
+        return 1
+    fi
+
+    if ! chmod 600 "$temporary_archive"; then
+        log_message ERROR \
+            "Unable to secure temporary backup archive" >&2
+        rm -f "$temporary_archive"
+        return 1
+    fi
+
+    if ! mv "$temporary_archive" "$BACKUP_FILE"; then
+        log_message ERROR \
+            "Unable to publish backup archive: $BACKUP_FILE" >&2
+        rm -f "$temporary_archive"
+        return 1
+    fi
+
+    log_message INFO \
+        "Backup archive created: $BACKUP_FILE"
+
+    return 0
+}
+
+cleanup_staging() {
+    log_message INFO "Cleaning up temporary staging directory"
+
+    if [[ -z "$STAGING_DIR" ]]; then
+        log_message WARNING \
+            "Staging directory has not been initialized"
+        return 0
+    fi
+
+    if [[ ! -e "$STAGING_DIR" ]]; then
+        log_message INFO \
+            "Temporary staging directory is already absent: $STAGING_DIR"
+        return 0
+    fi
+
+    if [[ ! -d "$STAGING_DIR" ]]; then
+        log_message ERROR \
+            "Staging path is not a directory: $STAGING_DIR" >&2
+        return 1
+    fi
+
+    case "$STAGING_DIR" in
+        "${TMPDIR:-/tmp}"/project-guardian-*)
+            ;;
+        *)
+            log_message ERROR \
+                "Refusing to remove unexpected staging path: $STAGING_DIR" >&2
+            return 1
+            ;;
+    esac
+
+    if ! rm -rf -- "$STAGING_DIR"; then
+        log_message ERROR \
+            "Unable to remove temporary staging directory: $STAGING_DIR" >&2
+        return 1
+    fi
+
+    if [[ -e "$STAGING_DIR" ]]; then
+        log_message ERROR \
+            "Temporary staging directory still exists: $STAGING_DIR" >&2
+        return 1
+    fi
+
+    log_message INFO \
+        "Temporary staging directory removed: $STAGING_DIR"
+
+    return 0
+}
+
 stop_pihole() {
     :
 }
@@ -285,3 +516,27 @@ if ! prepare_backup_contents; then
 fi
 
 log_message INFO "Backup content preparation completed"
+
+if ! create_backup_manifest; then
+    log_message ERROR \
+        "Backup aborted while creating manifest" >&2
+    return 1
+fi
+
+log_message INFO "Backup manifest creation completed"
+
+if ! create_backup_archive; then
+    log_message ERROR \
+        "Backup aborted while creating archive" >&2
+    return 1
+fi
+
+log_message INFO "Backup archive creation completed"
+
+if ! cleanup_staging; then
+    log_message ERROR \
+        "Backup created, but temporary cleanup failed" >&2
+    return 1
+fi
+
+log_message INFO "Temporary cleanup completed"
