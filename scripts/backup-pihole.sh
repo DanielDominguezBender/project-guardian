@@ -414,6 +414,100 @@ create_backup_archive() {
     return 0
 }
 
+verify_backup_archive() {
+    log_message INFO "Verifying backup archive"
+
+    if [[ -z "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup file path has not been initialized" >&2
+        return 1
+    fi
+
+    if [[ ! -e "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup archive does not exist: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    if [[ ! -f "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup archive path is not a regular file: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    if [[ ! -s "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup archive is empty: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    if [[ ! -r "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup archive is not readable: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    if ! tar -tzf "$BACKUP_FILE" >/dev/null 2>&1; then
+        log_message ERROR \
+            "Backup archive failed integrity validation: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    local required_entries=(
+        "configuration/docker-compose.yml"
+        "configuration/.env"
+        "data/etc-pihole/gravity.db"
+        "metadata/manifest.txt"
+    )
+
+    local entry
+
+    for entry in "${required_entries[@]}"; do
+        if ! tar -tzf "$BACKUP_FILE" "$entry" >/dev/null 2>&1; then
+            log_message ERROR \
+                "Required archive entry is missing: $entry" >&2
+            return 1
+        fi
+    done
+
+    local manifest_content
+
+    if ! manifest_content="$(
+        tar -xOzf "$BACKUP_FILE" metadata/manifest.txt
+    )"; then
+        log_message ERROR \
+            "Unable to read manifest from backup archive" >&2
+        return 1
+    fi
+
+    if [[ -z "$manifest_content" ]]; then
+        log_message ERROR \
+            "Backup manifest is empty" >&2
+        return 1
+    fi
+
+    if ! grep -Fxq \
+        "Project: Project Guardian" \
+        <<< "$manifest_content"; then
+        log_message ERROR \
+            "Backup manifest contains an unexpected project identifier" >&2
+        return 1
+    fi
+
+    if ! grep -Fxq \
+        "Backup-Type: Pi-hole" \
+        <<< "$manifest_content"; then
+        log_message ERROR \
+            "Backup manifest contains an unexpected backup type" >&2
+        return 1
+    fi
+
+    log_message INFO \
+        "Backup archive verification passed: $BACKUP_FILE"
+
+    return 0
+}
+
 cleanup_staging() {
     log_message INFO "Cleaning up temporary staging directory"
 
@@ -532,6 +626,14 @@ if ! create_backup_archive; then
 fi
 
 log_message INFO "Backup archive creation completed"
+
+if ! verify_backup_archive; then
+    log_message ERROR \
+        "Backup archive verification failed" >&2
+    return 1
+fi
+
+log_message INFO "Backup archive verification completed"
 
 if ! cleanup_staging; then
     log_message ERROR \
