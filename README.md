@@ -37,7 +37,11 @@ docker exec guardian-pihole pihole -g
 
 ## Current milestone:
 
-✔ Logging Engine architecture designed.
+✅ Backup Engine completed
+
+## Next milestone
+
+Disaster Recovery
 
 ---
 ## Roadmap
@@ -58,3 +62,4 @@ docker exec guardian-pihole pihole -g
 - [ ] Implement backup and recovery procedures
 - [ ] Apply security hardening
 - [ ] Complete architecture documentation
+

@@ -51,6 +51,9 @@ BACKUP_FILE=""
 STAGING_DIR=""
 MANIFEST_FILE=""
 
+RESTORE_TEST_DIR=""
+STAGING_TEMP_DIR=""
+
 # 3. Functions
 
 validate_environment() {
@@ -508,6 +511,107 @@ verify_backup_archive() {
     return 0
 }
 
+validate_restored_contents() {
+    log_message INFO "Validating restored backup contents"
+
+    if [[ -z "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup file path has not been initialized" >&2
+        return 1
+    fi
+
+    if [[ ! -f "$BACKUP_FILE" ]]; then
+        log_message ERROR \
+            "Backup archive does not exist: $BACKUP_FILE" >&2
+        return 1
+    fi
+
+    if ! RESTORE_TEST_DIR="$(
+        mktemp -d \
+            "${TMPDIR:-/tmp}/project-guardian-restore-${TIMESTAMP}-XXXXXX"
+    )"; then
+        log_message ERROR \
+            "Unable to create temporary restore validation directory" >&2
+        return 1
+    fi
+
+    if ! chmod 700 "$RESTORE_TEST_DIR"; then
+        log_message ERROR \
+            "Unable to secure restore validation directory: $RESTORE_TEST_DIR" >&2
+        return 1
+    fi
+
+    if ! tar -xzf "$BACKUP_FILE" -C "$RESTORE_TEST_DIR"; then
+        log_message ERROR \
+            "Unable to extract backup archive for restore validation" >&2
+        return 1
+    fi
+
+        local required_files=(
+        "configuration/docker-compose.yml"
+        "configuration/.env"
+        "data/etc-pihole/gravity.db"
+        "data/etc-pihole/pihole.toml"
+        "metadata/manifest.txt"
+    )
+
+    local required_file
+    local restored_path
+
+    for required_file in "${required_files[@]}"; do
+        restored_path="$RESTORE_TEST_DIR/$required_file"
+
+        if [[ ! -e "$restored_path" ]]; then
+            log_message ERROR \
+                "Required restored file does not exist: $required_file" >&2
+            return 1
+        fi
+
+        if [[ ! -f "$restored_path" ]]; then
+            log_message ERROR \
+                "Required restored path is not a regular file: $required_file" >&2
+            return 1
+        fi
+
+        if [[ ! -r "$restored_path" ]]; then
+            log_message ERROR \
+                "Required restored file is not readable: $required_file" >&2
+            return 1
+        fi
+
+        if [[ ! -s "$restored_path" ]]; then
+            log_message ERROR \
+                "Required restored file is empty: $required_file" >&2
+            return 1
+        fi
+    done
+
+        local restored_manifest
+
+    restored_manifest="$RESTORE_TEST_DIR/metadata/manifest.txt"
+
+    if ! grep -Fxq \
+        "Project: Project Guardian" \
+        "$restored_manifest"; then
+        log_message ERROR \
+            "Restored manifest has an unexpected project identifier" >&2
+        return 1
+    fi
+
+    if ! grep -Fxq \
+        "Backup-Type: Pi-hole" \
+        "$restored_manifest"; then
+        log_message ERROR \
+            "Restored manifest has an unexpected backup type" >&2
+        return 1
+    fi
+
+    log_message INFO \
+        "Restored backup contents validation passed: $RESTORE_TEST_DIR"
+
+    return 0
+}
+
 cleanup_staging() {
     log_message INFO "Cleaning up temporary staging directory"
 
@@ -553,6 +657,55 @@ cleanup_staging() {
 
     log_message INFO \
         "Temporary staging directory removed: $STAGING_DIR"
+
+    return 0
+}
+
+cleanup_restore_environment() {
+    log_message INFO "Cleaning up restore validation environment"
+
+    if [[ -z "$RESTORE_TEST_DIR" ]]; then
+        log_message WARNING \
+            "Restore validation directory has not been initialized"
+        return 0
+    fi
+
+    if [[ ! -e "$RESTORE_TEST_DIR" ]]; then
+        log_message INFO \
+            "Restore validation directory is already absent: $RESTORE_TEST_DIR"
+        return 0
+    fi
+
+    if [[ ! -d "$RESTORE_TEST_DIR" ]]; then
+        log_message ERROR \
+            "Restore validation path is not a directory: $RESTORE_TEST_DIR" >&2
+        return 1
+    fi
+
+    case "$RESTORE_TEST_DIR" in
+        "${TMPDIR:-/tmp}"/project-guardian-restore-*)
+            ;;
+        *)
+            log_message ERROR \
+                "Refusing to remove unexpected restore path: $RESTORE_TEST_DIR" >&2
+            return 1
+            ;;
+    esac
+
+    if ! rm -rf -- "$RESTORE_TEST_DIR"; then
+        log_message ERROR \
+            "Unable to remove restore validation directory: $RESTORE_TEST_DIR" >&2
+        return 1
+    fi
+
+    if [[ -e "$RESTORE_TEST_DIR" ]]; then
+        log_message ERROR \
+            "Restore validation directory still exists: $RESTORE_TEST_DIR" >&2
+        return 1
+    fi
+
+    log_message INFO \
+        "Restore validation directory removed: $RESTORE_TEST_DIR"
 
     return 0
 }
@@ -634,6 +787,30 @@ if ! verify_backup_archive; then
 fi
 
 log_message INFO "Backup archive verification completed"
+
+if ! cleanup_staging; then
+    log_message ERROR \
+        "Backup created, but temporary cleanup failed" >&2
+    return 1
+fi
+
+log_message INFO "Temporary cleanup completed"
+
+if ! validate_restored_contents; then
+    log_message ERROR \
+        "Restored backup contents validation failed" >&2
+    return 1
+fi
+
+log_message INFO "Restored backup contents validation completed"
+
+if ! cleanup_restore_environment; then
+    log_message ERROR \
+        "Restore validation passed, but cleanup failed" >&2
+    return 1
+fi
+
+log_message INFO "Restore validation cleanup completed"
 
 if ! cleanup_staging; then
     log_message ERROR \
