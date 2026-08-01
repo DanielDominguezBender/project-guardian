@@ -28,16 +28,8 @@ if ! declare -F log_message >/dev/null; then
 	exit 1
 fi
 
-#CONTAINER_NAME="guardian-pihole"
 CONTAINER_NAME="${CONTAINER_NAME:-guardian-pihole}"
 PIHOLE_STOPPED=false
-
-#COMPOSE_FILE="$PROJECT_ROOT/compose/pihole/docker-compose.yml"
-##COMPOSE_FILE="$PROJECT_ROOT/compose/pihole/docker-compose-does-not-exist.yml"
-#ENV_FILE="$PROJECT_ROOT/compose/pihole/.env"
-#PIHOLE_DATA_DIR="$PROJECT_ROOT/compose/pihole/etc-pihole"
-
-#BACKUP_ROOT="$PROJECT_ROOT/backups"
 
 COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_ROOT/compose/pihole/docker-compose.yml}"
 ENV_FILE="${ENV_FILE:-$PROJECT_ROOT/compose/pihole/.env}"
@@ -52,7 +44,6 @@ STAGING_DIR=""
 MANIFEST_FILE=""
 
 RESTORE_TEST_DIR=""
-STAGING_TEMP_DIR=""
 
 # 3. Functions
 
@@ -60,51 +51,60 @@ validate_environment() {
     log_message INFO "Validating backup environment"
 
     if ! command -v docker >/dev/null 2>&1; then
-        log_message ERROR "Required command not found: docker" >&2
+        log_message ERROR \
+            "Required command not found: docker" >&2
         return 1
     fi
 
     if ! command -v tar >/dev/null 2>&1; then
-        log_message ERROR "Required command not found: tar" >&2
+        log_message ERROR \
+            "Required command not found: tar" >&2
         return 1
     fi
 
     log_message INFO "Required commands are available"
 
     if [[ ! -r "$COMPOSE_FILE" ]]; then
-        log_message ERROR "Compose file is not readable: $COMPOSE_FILE" >&2
+        log_message ERROR \
+            "Compose file is not readable: $COMPOSE_FILE" >&2
         return 1
     fi
 
     if [[ ! -r "$ENV_FILE" ]]; then
-        log_message ERROR "Environment file is not readable: $ENV_FILE" >&2
+        log_message ERROR \
+            "Environment file is not readable: $ENV_FILE" >&2
         return 1
     fi
 
     if [[ ! -d "$PIHOLE_DATA_DIR" ]]; then
-        log_message ERROR "Pi-hole data directory does not exist: $PIHOLE_DATA_DIR" >&2
+        log_message ERROR \
+            "Pi-hole data directory does not exist: $PIHOLE_DATA_DIR" >&2
         return 1
     fi
 
     if [[ ! -r "$PIHOLE_DATA_DIR" ]]; then
-        log_message ERROR "Pi-hole data directory is not readable: $PIHOLE_DATA_DIR" >&2
+        log_message ERROR \
+            "Pi-hole data directory is not readable: $PIHOLE_DATA_DIR" >&2
         return 1
     fi
 
     if [[ ! -d "$BACKUP_ROOT" ]]; then
-        log_message ERROR "Backup root directory does not exist: $BACKUP_ROOT" >&2
+        log_message ERROR \
+            "Backup root directory does not exist: $BACKUP_ROOT" >&2
         return 1
     fi
 
     if [[ ! -w "$BACKUP_ROOT" ]]; then
-        log_message ERROR "Backup root directory is not writable: $BACKUP_ROOT" >&2
+        log_message ERROR \
+            "Backup root directory is not writable: $BACKUP_ROOT" >&2
         return 1
     fi
 
     log_message INFO "Required files and directories are available"
 
     if ! docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
-   	 log_message ERROR "Pi-hole container does not exist: $CONTAINER_NAME" >&2
+   	    log_message ERROR \ 
+            "Pi-hole container does not exist: $CONTAINER_NAME" >&2
     	return 1
     fi
 
@@ -115,30 +115,26 @@ validate_environment() {
         	--format '{{.State.Running}}' \
        		 "$CONTAINER_NAME"
     )"; then
-    	log_message ERROR "Unable to inspect Pi-hole container state: $CONTAINER_NAME" >&2
+    	log_message ERROR \
+            "Unable to inspect Pi-hole container state: $CONTAINER_NAME" >&2
     	return 1
     fi
 
     if [[ "$container_running" != "true" ]]; then
-    	log_message ERROR "Pi-hole container is not running: $CONTAINER_NAME" >&2
+    	log_message ERROR \
+            "Pi-hole container is not running: $CONTAINER_NAME" >&2
    	 return 1
     fi
 
-    log_message INFO "Pi-hole container is available and running"
-
-    if ! docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
-    log_message ERROR \
-        "Pi-hole container does not exist: $CONTAINER_NAME" >&2
-    return 1
-    fi
-
-    local container_running
+    log_message INFO \
+        "Pi-hole container is available and running"
 
     return 0
 }
 
 create_backup_directory() {
-    log_message INFO "Preparing backup destination"
+    log_message INFO \
+        "Preparing backup destination"
 
     if ! TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"; then
         log_message ERROR "Unable to generate backup timestamp" >&2
@@ -174,7 +170,7 @@ create_backup_directory() {
     fi
 
     log_message INFO "Backup directory ready: $BACKUP_DIR"
-    log_message INFO "Backup file reserved: $BACKUP_FILE"
+    log_message INFO "Backup file path prepared: $BACKUP_FILE"
 
     return 0
 }
@@ -547,7 +543,7 @@ validate_restored_contents() {
         return 1
     fi
 
-        local required_files=(
+    local required_files=(
         "configuration/docker-compose.yml"
         "configuration/.env"
         "data/etc-pihole/gravity.db"
@@ -586,7 +582,7 @@ validate_restored_contents() {
         fi
     done
 
-        local restored_manifest
+    local restored_manifest
 
     restored_manifest="$RESTORE_TEST_DIR/metadata/manifest.txt"
 
@@ -710,22 +706,6 @@ cleanup_restore_environment() {
     return 0
 }
 
-stop_pihole() {
-    :
-}
-
-create_backup() {
-    :
-}
-
-start_pihole() {
-    :
-}
-
-validate_backup() {
-    :
-}
-
 cleanup() {
     :
 }
@@ -740,6 +720,74 @@ main() {
     fi
 
     log_message INFO "Initial environment validation completed"
+
+
+    if ! create_backup_directory; then
+        log_message ERROR \
+            "Backup aborted while preparing destination" >&2
+        return 1
+    fi
+
+    log_message INFO "Backup destination preparation completed"
+
+    if ! prepare_backup_contents; then
+        log_message ERROR \
+            "Backup aborted while preparing backup contents" >&2
+        return 1
+    fi
+
+    log_message INFO "Backup content preparation completed"
+
+    if ! create_backup_manifest; then
+        log_message ERROR \
+            "Backup aborted while creating manifest" >&2
+        return 1
+    fi
+
+    log_message INFO "Backup manifest creation completed"
+
+    if ! create_backup_archive; then
+        log_message ERROR \
+            "Backup aborted while creating archive" >&2
+        return 1
+    fi
+
+    log_message INFO "Backup archive creation completed"
+
+    if ! verify_backup_archive; then
+        log_message ERROR \
+            "Backup archive verification failed" >&2
+        return 1
+    fi
+
+    log_message INFO "Backup archive verification completed"
+
+    if ! validate_restored_contents; then
+        log_message ERROR \
+            "Restored backup contents validation failed" >&2
+        return 1
+    fi
+
+    log_message INFO "Restored backup contents validation completed"
+
+    if ! cleanup_restore_environment; then
+        log_message ERROR \
+            "Restore validation passed, but cleanup failed" >&2
+        return 1
+    fi
+
+    log_message INFO "Restore validation cleanup completed"
+
+    if ! cleanup_staging; then
+        log_message ERROR \
+            "Backup created, but temporary cleanup failed" >&2
+        return 1
+    fi
+
+    log_message INFO "Temporary cleanup completed"
+
+    return 0
+
 }
 
 # 4. Main execution flow
@@ -747,75 +795,3 @@ main() {
 trap cleanup EXIT
 
 main "$@"
-
-if ! create_backup_directory; then
-    log_message ERROR \
-        "Backup aborted while preparing destination" >&2
-    return 1
-fi
-
-log_message INFO "Backup destination preparation completed"
-
-if ! prepare_backup_contents; then
-    log_message ERROR \
-        "Backup aborted while preparing backup contents" >&2
-    return 1
-fi
-
-log_message INFO "Backup content preparation completed"
-
-if ! create_backup_manifest; then
-    log_message ERROR \
-        "Backup aborted while creating manifest" >&2
-    return 1
-fi
-
-log_message INFO "Backup manifest creation completed"
-
-if ! create_backup_archive; then
-    log_message ERROR \
-        "Backup aborted while creating archive" >&2
-    return 1
-fi
-
-log_message INFO "Backup archive creation completed"
-
-if ! verify_backup_archive; then
-    log_message ERROR \
-        "Backup archive verification failed" >&2
-    return 1
-fi
-
-log_message INFO "Backup archive verification completed"
-
-if ! cleanup_staging; then
-    log_message ERROR \
-        "Backup created, but temporary cleanup failed" >&2
-    return 1
-fi
-
-log_message INFO "Temporary cleanup completed"
-
-if ! validate_restored_contents; then
-    log_message ERROR \
-        "Restored backup contents validation failed" >&2
-    return 1
-fi
-
-log_message INFO "Restored backup contents validation completed"
-
-if ! cleanup_restore_environment; then
-    log_message ERROR \
-        "Restore validation passed, but cleanup failed" >&2
-    return 1
-fi
-
-log_message INFO "Restore validation cleanup completed"
-
-if ! cleanup_staging; then
-    log_message ERROR \
-        "Backup created, but temporary cleanup failed" >&2
-    return 1
-fi
-
-log_message INFO "Temporary cleanup completed"

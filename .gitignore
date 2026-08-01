@@ -6,3 +6,6 @@ backups/*
 
 # Pi-hole persistent runtime data
 compose/pihole/etc-pihole/
+
+# Backups
+*.tar.gz
